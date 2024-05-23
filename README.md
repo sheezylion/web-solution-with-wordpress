@@ -627,7 +627,7 @@ sudo vi /etc/fstab
 and add this
 
 ```
-UUID=<uuid of your dbdata-vg-apps> /var/www/html ext4 defaults 0 0
+UUID=<uuid of your dbdata-vg-db> /var/www/html ext4 defaults 0 0
 UUID=<uuid of your dbdata-vg-logs> /var/log ext4 defaults 0 0
 ```
 
@@ -705,4 +705,161 @@ sudo systemctl enable php-fpm
 setsebool -P httpd_execmem 1
 ```
 
+5. Restart Apache
+
+```
+sudo systemctl restart httpd
+```
+
+6. Download wordpress and copy wordpress to var/www/html
+
+```
+mkdir wordpress
+cd   wordpress
+sudo wget http://wordpress.org/latest.tar.gz
+sudo tar xzvf latest.tar.gz
+sudo rm -rf latest.tar.gz
+sudo cp wordpress/wp-config-sample.php wordpress/wp-config.php
+sudo cp -R wordpress /var/www/html/
+```
+
+7. Configure SELinux Policies
+
+```
+sudo chown -R apache:apache /var/www/html/wordpress
+sudo chcon -t httpd_sys_rw_content_t /var/www/html/wordpress -R
+sudo setsebool -P httpd_can_network_connect=1
+```
+
+### Install MySQL on your DB Server EC2
+
+1. Install mysql on the db-server
+
+```
+sudo yum update
+sudo yum install mysql-server
+```
+
+Result:
+
+<img width="833" alt="Screenshot 2024-05-23 at 15 37 40" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/6b323bdf-0973-48bd-b145-3034b0541001">
+
+2. Verify that the service is up and running by using sudo systemctl status mysqld. If the service is not running, restart the service and enable it so it will be running even after reboot:
+
+```
+sudo systemctl restart mysqld
+sudo systemctl enable mysqld
+sudo systemctl status mysqld
+```
+Result:
+
+<img width="839" alt="Screenshot 2024-05-23 at 15 47 50" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/0848f744-7bb3-4d5a-bd34-8c5cdc07d7da">
+
+
+### Configuring the DB to work with WordPress
+
+Here we need to configure the database to work with WordPress. By allowing the wordpress server be able to connect to the database, we need to configure the database to allow the wordpress server to connect to the database.
+
+1. Get the ip-address of the wordpress server
+
+```
+curl http://checkip.amazonaws.com
+```
+
+Result:
+
+<img width="570" alt="Screenshot 2024-05-23 at 15 45 04" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/9492a2e6-0857-4017-b228-4ed844301f95">
+
+
+2. We need to create a user for the wordpress server to connect to the database.
+
+```
+sudo mysql
+CREATE DATABASE wordpress;
+CREATE USER `myuser`@`<Web-Server-Private-IP-Address>` IDENTIFIED BY 'mypass';
+GRANT ALL ON wordpress.* TO 'myuser'@'<Web-Server-Private-IP-Address>';
+FLUSH PRIVILEGES;
+SHOW DATABASES;
+exit
+```
+
+Results:
+
+<img width="604" alt="Screenshot 2024-05-23 at 16 14 34" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/bda93823-5e47-4c04-9ba0-0c7ced514297">
+
+
+
+### Configure WordPress to connect to remote database.
+
+1. Here we are to open MySQL port 3306 on DB Server EC2. For extra security, you shall allow access to the DB server ONLY from your Web Server’s IP address, so in the Inbound Rule configuration specify source as /32.
+
+Result:
+
+<img width="1623" alt="Screenshot 2024-05-23 at 15 53 20" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/262cd597-7146-49f5-8ad4-3b3b8e82a499">
+
+2. Install MySQL client and test that you can connect from your Web Server to your DB server by using mysql-client
+
+```
+sudo yum install mysql
+```
+
+3. Create login to the database on the db server
+
+```
+sudo mysql -u <user> -p -h <DB-Server-Private-IP-address>
+```
+
+Result:
+
+<img width="772" alt="Screenshot 2024-05-23 at 16 17 24" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/e531c1b9-f54c-433f-b677-d5052f621e5c">
+
+4. Verify if you can successfully execute SHOW DATABASES; command and see a list of existing databases.
+
+```
+SHOW DATABASES;
+```
+
+Result:
+
+<img width="467" alt="Screenshot 2024-05-23 at 16 18 07" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/08cd655b-d07f-4028-8789-a87e8cca3c74">
+
+5. Change permissions and configuration so Apache could use WordPress:
+Here we need to create a configuration file for wordpress in order to point client requests to the wordpress directory.
+
+```
+sudo vi /etc/httpd/conf.d/wordpress.conf
+```
+
+and copy and paste the lines below:
+
+```
+<VirtualHost *:80>
+ServerAdmin myuser@172.31.27.7
+DocumentRoot /var/www/html/wordpress
+
+<Directory "/var/www/html/wordpress">
+Options Indexes FollowSymLinks
+AllowOverride all
+Require all granted
+</Directory>
+
+ErrorLog /var/log/httpd/wordpress_error.log
+CustomLog /var/log/httpd/wordpress_access.log common
+</VirtualHost>
+```
+
+Result:
+
+<img width="765" alt="Screenshot 2024-05-23 at 16 24 15" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/69c3f621-680e-4eb5-8a8a-6412f8125da7">
+
+
+6. To apply the changes, restart Apache
+
+```
+sudo systemctl restart httpd
+```
+
+7. Enable TCP port 80 in Inbound Rules configuration for your Web Server EC2 (enable from everywhere 0.0.0.0/0 or from your workstation’s IP)
+
+Result:
 
