@@ -695,7 +695,6 @@ Result:
 
 ```
 sudo yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-sudo yum install yum-utils http://rpms.remirepo.net/enterprise/remi-release-8.rpm
 sudo yum module list php
 sudo yum module reset php
 sudo yum module enable php:remi-7.4
@@ -766,11 +765,6 @@ Here we need to configure the database to work with WordPress. By allowing the w
 curl http://checkip.amazonaws.com
 ```
 
-Result:
-
-<img width="570" alt="Screenshot 2024-05-23 at 15 45 04" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/9492a2e6-0857-4017-b228-4ed844301f95">
-
-
 2. We need to create a user for the wordpress server to connect to the database.
 
 ```
@@ -803,6 +797,11 @@ Result:
 sudo yum install mysql
 ```
 
+Result:
+
+<img width="781" alt="Screenshot 2024-05-23 at 18 02 46" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/52cf70d5-1164-4bd9-8ab3-f5f0259f5793">
+
+
 3. Create login to the database on the db server
 
 ```
@@ -811,7 +810,7 @@ sudo mysql -u <user> -p -h <DB-Server-Private-IP-address>
 
 Result:
 
-<img width="772" alt="Screenshot 2024-05-23 at 16 17 24" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/e531c1b9-f54c-433f-b677-d5052f621e5c">
+<img width="827" alt="Screenshot 2024-05-23 at 18 04 48" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/8cb87453-4d1d-4fba-ac5a-d708d9c149c4">
 
 4. Verify if you can successfully execute SHOW DATABASES; command and see a list of existing databases.
 
@@ -821,7 +820,7 @@ SHOW DATABASES;
 
 Result:
 
-<img width="467" alt="Screenshot 2024-05-23 at 16 18 07" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/08cd655b-d07f-4028-8789-a87e8cca3c74">
+<img width="547" alt="Screenshot 2024-05-23 at 18 06 01" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/ecd92a54-45aa-4940-ad2e-d9384b3f6855">
 
 5. Change permissions and configuration so Apache could use WordPress:
 Here we need to create a configuration file for wordpress in order to point client requests to the wordpress directory.
@@ -859,7 +858,54 @@ Result:
 sudo systemctl restart httpd
 ```
 
-7. Enable TCP port 80 in Inbound Rules configuration for your Web Server EC2 (enable from everywhere 0.0.0.0/0 or from your workstation’s IP)
+7. Edit the wp-config file
+
+```
+sudo vi /var/www/html/wordpress/wp-config.php
+```
 
 Result:
 
+<img width="710" alt="Screenshot 2024-05-23 at 18 40 32" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/b600d7e8-d94c-4bcd-8498-71b6e6b68905">
+
+and add the following lines:
+
+```
+define('DB_NAME', 'wordpress');
+define('DB_USER', 'myuser');
+define('DB_PASSWORD', 'mypass');
+define('DB_HOST', '<db-Server-Private-IP-Address>');
+define('DB_CHARSET', 'utf8mb4');
+define('DB_COLLATE', '');
+```
+Result:
+
+<img width="808" alt="Screenshot 2024-05-23 at 18 40 18" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/e8dbd3bd-fe8d-48a0-962c-468d8095378b">
+
+8. configure SELinux for wordpress
+
+```
+sudo semanage fcontext -a -t httpd_sys_rw_content_t "/var/www/html/wordpress/.*?"
+```
+
+9. Enable TCP port 80 in Inbound Rules configuration for your Web Server EC2 (enable from everywhere 0.0.0.0/0 or from your workstation’s IP)
+
+Result:
+
+<img width="1645" alt="Screenshot 2024-05-23 at 18 08 44" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/8c31e63c-9ac7-4088-ac82-2b9b74767f4b">
+
+10. ry to access from your browser the link to your WordPress
+
+```
+http://<Web-Server-Public-IP-Address>/
+```
+
+Results:
+
+<img width="1401" alt="Screenshot 2024-05-23 at 18 41 59" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/a006ec5f-edcf-4c90-bfa6-0dc9f329472e">
+
+<img width="1556" alt="Screenshot 2024-05-23 at 18 42 56" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/afea077d-be46-437b-9c60-65a6a05d83cd">
+
+<img width="1582" alt="Screenshot 2024-05-23 at 19 15 55" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/ae52d20f-fa40-4a7f-95e3-550b891bbc94">
+
+### The implementation of this project is complete and WordPress is available to be used.
