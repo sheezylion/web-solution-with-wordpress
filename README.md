@@ -207,7 +207,7 @@ sudo lvmdiskscan
 
 Result:
 
-<img width="550" alt="Screenshot 2024-05-22 at 15 39 10" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/8f727f8b-8d02-49ea-9f2d-bab633986ef3">
+<img width="577" alt="Screenshot 2024-05-23 at 11 34 43" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/6eda7edf-af28-44df-b553-45c3dc6e87fb">
 
 Note: Unlike ubuntu that uses apt, for redhat the package manager is yum.
 
@@ -532,7 +532,8 @@ sudo lvs
 
 Result:
 
-<img width="637" alt="Screenshot 2024-05-22 at 17 35 28" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/c8f3395e-86ec-4ad1-89aa-b778973e410d">
+<img width="697" alt="Screenshot 2024-05-23 at 11 54 19" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/cb8a9ecd-2a40-4f43-86fc-f4144ea4a182">
+
 
 12. We need to verify all we have done so far on the database server instance so far with these commands.
 
@@ -545,11 +546,163 @@ Results:
 
 ![Screenshot 2024-05-22 at 17 36 27](https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/9e962159-3b84-4dba-a557-193c1ffbca11)
 
-<img width="555" alt="Screenshot 2024-05-22 at 17 38 47" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/4c943e36-3fa5-458e-83c5-8faa7659dc8e">
+<img width="547" alt="Screenshot 2024-05-23 at 11 55 03" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/8ad79e86-f4dc-4276-9ad6-2f403809e038">
+
 
 13. Use mkfs.ext4 to format the logical volumes with ext4 filesystem
 
 ```
 sudo mkfs.ext4 /dev/dbdata-vg/db-lv && sudo mkfs.ext4 /dev/dbdata-vg/logs-lv
 ```
+
+Result:
+
+<img width="839" alt="Screenshot 2024-05-23 at 11 56 47" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/023b8ff3-c75c-49f4-9ee7-02457fd92aa2">
+
+Now that we are done configuring the database logical volumes, we would be moving on with creating the mount points for the logical volumes and the required directories.
+
+14. Create /db directory to store website files
+
+```
+sudo mkdir -p /db
+```
+
+15. Create /home/recovery/logs to store backup of log data
+
+```
+sudo mkdir -p /home/recovery/logs
+```
+
+16. Mount /db on apps-lv logical volume
+
+```
+sudo mount /dev/dbdata-vg/db-lv /db
+```
+
+17. Like we did for the webserver instance use rsync utility to backup all the files in the log directory /var/log into /home/recovery/logs (This is required before mounting the file system)
+
+```
+sudo rsync -av /var/log/. /home/recovery/logs/
+```
+
+Result:
+
+<img width="732" alt="Screenshot 2024-05-23 at 12 02 17" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/765c6d4b-28e3-452b-94f8-24a5bbb8fa26">
+
+18. Mount /var/log on logs-lv logical volume. (Note that all the existing data on /var/log will be deleted. That is why step of creating /db directory to store database files)
+
+```
+sudo mount /dev/dbdata-vg/logs-lv /var/log
+```
+
+19. Restore log files back into /var/log directory
+
+```
+sudo rsync -av /home/recovery/logs/. /var/log
+```
+
+Result:
+
+<img width="725" alt="Screenshot 2024-05-23 at 12 05 15" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/60da1007-73ad-4f6e-b2be-8e9813f7875a">
+
+Now we need to update the /etc/fstab file to ensure that the configurations we made is persistent across reboots.
+
+20. Update /etc/fstab file so that the mount configuration will persist after restart of the server.
+The UUID of the device will be used to update the /etc/fstab file;
+
+```
+sudo blkid
+```
+
+Result:
+
+<img width="847" alt="Screenshot 2024-05-23 at 12 07 17" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/d4789e61-4ecf-421b-bb18-71c18b9a281a">
+
+21. Update /etc/fstab in this format using your own UUID and rememeber to remove the leading and ending quotes.
+
+```
+sudo vi /etc/fstab
+```
+
+and add this
+
+```
+UUID=<uuid of your dbdata-vg-apps> /var/www/html ext4 defaults 0 0
+UUID=<uuid of your dbdata-vg-logs> /var/log ext4 defaults 0 0
+```
+
+Result:
+
+<img width="863" alt="Screenshot 2024-05-23 at 12 11 34" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/efdc4cc9-c569-44f0-82a1-138a9ea4ef19">
+
+22. Test the configuration and reload the daemon
+
+```
+sudo mount -a
+sudo systemctl daemon-reload
+```
+
+Result:
+
+<img width="585" alt="Screenshot 2024-05-23 at 12 13 37" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/bf53afbb-126e-4b42-9e72-1afaf5fa9e1e">
+
+23. Verify your setup by running df -h, output must look like this:
+
+```
+sudo df -h
+```
+
+Result:
+
+<img width="616" alt="Screenshot 2024-05-23 at 12 14 38" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/9789d49e-d8eb-486e-887a-ab2ced7c6a2b">
+
+Now your db server is ready to go and make other configurations as required.
+
+### Install WordPress on your Web Server EC2 Instance
+
+1. Update the repository
+
+```
+sudo yum update
+```
+
+Result:
+
+<img width="834" alt="Screenshot 2024-05-23 at 12 20 04" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/03971961-2c0e-49fa-bd2d-c77be078edcc">
+
+2. Install wget, Apache and it’s dependencies
+
+```
+sudo yum -y install wget httpd php php-mysqlnd php-fpm php-json
+```
+
+Result:
+
+<img width="834" alt="Screenshot 2024-05-23 at 12 22 38" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/66de9fe3-a648-4952-9c1d-b384360fabfd">
+
+3. Start the apache service
+
+```
+sudo systemctl enable httpd
+sudo systemctl start httpd
+```
+
+Result:
+
+<img width="826" alt="Screenshot 2024-05-23 at 12 23 46" src="https://github.com/sheezylion/web-solution-with-wordpress/assets/142250556/cff38880-a47b-4955-9b3c-0b1a5581f415">
+
+4. Next, we install PHP and it’s depemdencies
+
+```
+sudo yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+sudo yum install yum-utils http://rpms.remirepo.net/enterprise/remi-release-8.rpm
+sudo yum module list php
+sudo yum module reset php
+sudo yum module enable php:remi-7.4
+sudo yum install php php-opcache php-gd php-curl php-mysqlnd
+sudo systemctl start php-fpm
+sudo systemctl enable php-fpm
+setsebool -P httpd_execmem 1
+```
+
 
